@@ -24,7 +24,7 @@ Node.js ve PostgreSQL ile basit CRUD (Create, Read, Update, Delete) API uygulama
 | DELETE | `/delete/:id` | Kullanıcı sil | - |
 
 ## 🛠️ Kurulum
-
+Buraları AI A YAZDIRDIM
 ### Docker ile (Önerilen)
 
 ```bash
