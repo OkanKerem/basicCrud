@@ -2,7 +2,7 @@
 FROM node:18
 
 # Set working directory
-WORKDIR /app/
+WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
@@ -16,4 +16,4 @@ COPY . .
 # Expose port
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["node", "src/app.js"]

@@ -8,10 +8,10 @@ app.use(express.json())
 console.log('Server başlatılıyor...')
 
 console.log('Database bağlantı ayarları:')
-console.log('  Host: db')
+console.log('  Host: localhost')
 console.log('  Port: 5432')
-console.log('  User: 123')
-console.log('  Database: db1')
+console.log('  User: postgres')
+console.log('  Database: postgres')
 
 // Root endpoint
 app.get("/",  async (req, res) => {
@@ -198,12 +198,6 @@ app.get("/users", async (req, res) => {
         res.status(500).send("Error getting users: " + err.message)
     }
 });
-
-// Start server
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`)
-    console.log(`Docker PostgreSQL bağlantısı kuruluyor...`)
-})
 
 // Start server
 app.listen(port, () => {
