@@ -1,92 +1,11 @@
 const UserService = require('../services/UserService');
-const pool = require('../config/database');
 const User = require('../models/User');
 
 class UserController {
-    // Repository methods (Database operations)
-    static async createTable() {
-        try {
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    isim CHAR(99) NOT NULL,
-                    yas INTEGER NOT NULL,
-                    tc CHAR(11) UNIQUE NOT NULL
-                );
-            `);
-            console.log('Users tablosu oluşturuldu');
-            return true;
-        } catch (error) {
-            console.error('Tablo oluşturma hatası:', error);
-            throw error;
-        }
-    }
-
-    static async findAll() {
-        try {
-            const result = await pool.query('SELECT * FROM users ORDER BY id');
-            return result.rows.map(row => User.fromDatabaseRow(row));
-        } catch (error) {
-            console.error('Kullanıcıları getirme hatası:', error);
-            throw error;
-        }
-    }
-
-    static async findById(id) {
-        try {
-            const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
-            return result.rows[0] ? User.fromDatabaseRow(result.rows[0]) : null;
-        } catch (error) {
-            console.error('Kullanıcı getirme hatası:', error);
-            throw error;
-        }
-    }
-
-    static async create(userData) {
-        try {
-            const { isim, yas, tc } = userData;
-            const result = await pool.query(
-                'INSERT INTO users (isim, yas, tc) VALUES ($1, $2, $3) RETURNING *',
-                [isim, yas, tc]
-            );
-            return User.fromDatabaseRow(result.rows[0]);
-        } catch (error) {
-            console.error('Kullanıcı oluşturma hatası:', error);
-            throw error;
-        }
-    }
-
-    static async update(id, userData) {
-        try {
-            const { isim, yas, tc } = userData;
-            const result = await pool.query(
-                'UPDATE users SET isim = $1, yas = $2 WHERE id = $3 RETURNING *',
-                [isim, yas, id]
-            );
-            return result.rows[0] ? User.fromDatabaseRow(result.rows[0]) : null;
-        } catch (error) {
-            console.error('Kullanıcı güncelleme hatası:', error);
-            throw error;
-        }
-    }
-
-    static async delete(id) {
-        try {
-            const result = await pool.query(
-                'DELETE FROM users WHERE id = $1 RETURNING *',
-                [id]
-            );
-            return result.rows[0] ? User.fromDatabaseRow(result.rows[0]) : null;
-        } catch (error) {
-            console.error('Kullanıcı silme hatası:', error);
-            throw error;
-        }
-    }
-
     // HTTP Controller methods
     static async initializeTable(req, res) {
         try {
-            await UserController.createTable();
+            await UserService.createTable();
             res.json({ message: 'Database tablosu başarıyla oluşturuldu' });
         } catch (error) {
             console.error('Database başlatma hatası:', error);
@@ -96,7 +15,7 @@ class UserController {
 
     static async getAllUsers(req, res) {
         try {
-            const users = await UserController.findAll();
+            const users = await UserService.findAll();
             res.json(users);
         } catch (error) {
             console.error('Kullanıcı listesi hatası:', error);
@@ -107,7 +26,7 @@ class UserController {
     static async getUserById(req, res) {
         try {
             const id = parseInt(req.params.id);
-            const user = await UserController.findById(id);
+            const user = await UserService.findById(id);
             
             if (!user) {
                 return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
@@ -125,16 +44,20 @@ class UserController {
             const userData = req.body;
             
             // Validation
-            const validationErrors = User.validate(userData);
+            const validationErrors = UserService.validateUserData(userData);
             if (validationErrors.length > 0) {
                 return res.status(400).json({ error: `Validation error: ${validationErrors.join(', ')}` });
             }
 
-            const newUser = await UserController.create(userData);
+            const newUser = await UserService.create(userData);
             res.status(201).json(newUser);
         } catch (error) {
             console.error('Kullanıcı oluşturma hatası:', error);
-            res.status(500).json({ error: 'Kullanıcı oluşturulamadı' });
+            if (error.message.includes('TC kimlik numarası zaten kullanımda')) {
+                res.status(400).json({ error: error.message });
+            } else {
+                res.status(500).json({ error: 'Kullanıcı oluşturulamadı' });
+            }
         }
     }
 
@@ -144,26 +67,32 @@ class UserController {
             const userData = req.body;
             
             // Validation
-            const validationErrors = User.validate(userData);
+            const validationErrors = UserService.validateUserData(userData);
             if (validationErrors.length > 0) {
                 return res.status(400).json({ error: `Validation error: ${validationErrors.join(', ')}` });
             }
             
-            const updatedUser = await UserController.update(id, userData);
+            const updatedUser = await UserService.update(id, userData);
             if (!updatedUser) {
                 return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
             }
             res.json(updatedUser);
         } catch (error) {
             console.error('Kullanıcı güncelleme hatası:', error);
-            res.status(500).json({ error: 'Kullanıcı güncellenemedi' });
+            if (error.message.includes('TC kimlik numarası değiştirilemez')) {
+                res.status(400).json({ error: error.message });
+            } else if (error.message.includes('Kullanıcı bulunamadı')) {
+                res.status(404).json({ error: error.message });
+            } else {
+                res.status(500).json({ error: 'Kullanıcı güncellenemedi' });
+            }
         }
     }
 
     static async deleteUser(req, res) {
         try {
             const id = parseInt(req.params.id);
-            const deletedUser = await UserController.delete(id);
+            const deletedUser = await UserService.delete(id);
             
             if (!deletedUser) {
                 return res.status(404).json({ error: 'Kullanıcı bulunamadı' });

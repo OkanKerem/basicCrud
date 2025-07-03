@@ -1,181 +1,38 @@
-const express = require('express');
-const pool = require('./config/database');
+const express = require("express")
+const pool = require("./database")
+const UserController = require("./controllers/UserController")
+const port = 3000
 
 const app = express();
-app.use(express.json());
+app.use(express.json())
 
-console.log('Server başlatılıyor...');
+console.log('Server başlatılıyor...')
 
-console.log('Database bağlantı ayarları:');
-console.log('  Host: localhost');
-console.log('  Port: 5432');
-console.log('  User: postgres');
-console.log('  Database: postgres');
+console.log('Database bağlantı ayarları:')
+console.log('  Host: db')
+console.log('  Port: 5432')
+console.log('  User: postgres')
+console.log('  Database: postgres')
 
-// Root endpoint - tablo oluştur
-app.get("/", async (req, res) => {
-    console.log('Root endpoint çağrıldı');
-    try {
-        await pool.query('DROP TABLE IF EXISTS users');
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                isim CHAR(99) NOT NULL,
-                yas INTEGER NOT NULL,
-                tc CHAR(11) UNIQUE NOT NULL
-            );
-        `);
-        console.log('Tablo oluşturuldu');
-        res.send("Table created");
-    } catch (err) {
-        console.error('Root endpoint hatası:', err.message);
-        res.status(500).send("Database error: " + err.message);
-    }
-});
+// Routes
+app.get('/', UserController.initializeTable);
+app.get('/users', UserController.getAllUsers);
+app.get('/user/:id', UserController.getUserById);
+app.post('/insert', UserController.createUser);
+app.put('/users/:id', UserController.updateUser);
+app.delete('/delete/:id', UserController.deleteUser);
 
-// Insert user
-app.post("/insert", async (req, res) => {
-    const { isim, yas, tc } = req.body;
-    console.log('Insert işlemi başladı:');
-    console.log('İsim:', isim);
-    console.log('Yaş:', yas);
-    console.log('TC:', tc);
-    
-    try {
-        await pool.query(
-            "INSERT INTO users (isim, yas, tc) VALUES ($1, $2, $3)",
-            [isim, yas, tc]
-        );
-        console.log('Kullanıcı eklendi');
-        res.send("User inserted");
-    } catch (err) {
-        console.error('Insert hatası:', err.message);
-        res.status(500).send("Error inserting user: " + err.message);
-    }
-});
+// Root endpoint
 
-// Get user by ID
-app.get("/users/:id", async (req, res) => {
-    const { id } = req.params;
-    console.log('Kullanıcı aranıyor, ID:', id);
-    
-    try {
-        const result = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
-        
-        if (result.rows.length === 0) {
-            console.log('Kullanıcı bulunamadı');
-            return res.status(404).json({ error: "Kullanıcı bulunamadı" });
-        }
-        
-        console.log('Kullanıcı bulundu:', result.rows[0].isim);
-        res.json(result.rows[0]);
-    } catch (err) {
-        console.error('Kullanıcı getirme hatası:', err.message);
-        res.status(500).send("Error getting user: " + err.message);
-    }
-});
 
-// Update user
-app.put("/update/:id", async (req, res) => {
-    const { id } = req.params;
-    const { isim, yas, tc } = req.body;
-    
-    console.log('Update işlemi başladı:');
-    console.log('ID:', id);
-    console.log('Yeni isim:', isim);
-    console.log('Yeni yaş:', yas);
-    console.log('Yeni TC:', tc);
-    
-    try {
-        console.log('Mevcut kullanıcı aranıyor');
-       
-        const currentUser = await pool.query(
-            "SELECT tc FROM users WHERE id = $1",
-            [id]
-        );
-        
-        if (currentUser.rows.length === 0) {
-            console.log('Kullanıcı bulunamadı!');
-            return res.status(404).send("User not found");
-        }
-        
-        const currentTc = currentUser.rows[0].tc;
-        console.log('Mevcut TC:', currentTc);
-        console.log('Yeni TC:', tc);
-        console.log('TCler:', currentTc === tc ? 'Aynı' : 'Farklı');
-        
-        if (currentTc !== tc) {
-            console.log('TC değiştirme');
-            return res.status(400).send("TC kimlik numarası değiştirilemez!");
-        }
-        
-        console.log('TC aynı, güncelleme yapılıyor...');
-        await pool.query(
-            "UPDATE users SET isim = $1, yas = $2 WHERE id = $3",
-            [isim, yas, id]
-        );
-        
-        console.log('Güncelleme başarılı!');
-        res.send("User updated successfully");
-    } catch (err) {
-        console.error('Update hatası:', err.message);
-        res.status(500).send("Error updating user: " + err.message);
-    }
-});
+// 404 handler
 
-// Delete user
-app.delete("/delete/:id", async (req, res) => {
-    const { id } = req.params;
-    
-    console.log('Delete işlemi başladı:');
-    console.log('ID:', id);
-    
-    try {
-        console.log('Kullanıcı aranıyor...');
-        
-        const user = await pool.query(
-            "SELECT * FROM users WHERE id = $1",
-            [id]
-        );
-        
-        if (user.rows.length === 0) {
-            console.log('Kullanıcı bulunamadı!');
-            return res.status(404).json({ error: "User not found"});
-        }
-        
-        console.log('Kullanıcı:', user.rows[0].isim);
-        console.log('Siliyom');
-        
-        await pool.query(
-            "DELETE FROM users WHERE id = $1",
-            [id]
-        );
-        
-        console.log('Sildim');
-        res.json({ message: "User deleted", deletedUser: user.rows[0] });
-        
-    } catch (err) {
-        console.error('Delete hatası:', err.message);
-        res.status(500).send("Error deleting user: " + err.message);
-    }
-});
-
-// Get all users
-app.get("/users", async (req, res) => {
-    console.log('Tüm kullanıcılar getiriliyor');
-    try {
-        const result = await pool.query("SELECT * FROM users ORDER BY id");
-        console.log('Kullanıcı sayısı:', result.rows.length);
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Kullanıcı listesi hatası:', err.message);
-        res.status(500).send("Error getting users: " + err.message);
-    }
-});
 
 // Server başlat
-const port = 3000;
+
+// Start server
 app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-    console.log('Local PostgreSQL bağlantısı kuruluyor...');
-}); 
+    console.log(`Server running on port ${port}`)
+    console.log(`Docker PostgreSQL bağlantısı kuruluyor...`)
+})
+
